@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {prisma} from "@/lib/prisma";
-import {session,audit} from "@/lib/security";
+import {session,audit,hasValidRequestOrigin} from "@/lib/security";
 const schema=z.object({institutionId:z.string().uuid(),serviceType:z.string().trim().min(3).max(80),applicantNote:z.string().max(3000).optional()});
 export async function GET(){
  try { const {profile}=await session(); const staff=["OFFICER","APPROVER","ADMIN"].includes(profile.role);
@@ -10,6 +10,7 @@ export async function GET(){
  } catch {return NextResponse.json({error:"Sesi tidak valid atau profil belum disiapkan."},{status:401});}
 }
 export async function POST(req:Request){
+ if(!hasValidRequestOrigin(req))return NextResponse.json({error:"Asal permintaan tidak valid."},{status:403});
  try {const {user,profile}=await session(); const p=schema.safeParse(await req.json().catch(()=>null)); if(!p.success)return NextResponse.json({error:"Data pengajuan tidak valid."},{status:400});
  const member=await prisma.institutionMember.findFirst({where:{institutionId:p.data.institutionId,userProfileId:profile.id}});
  if(!member)return NextResponse.json({error:"Akses lembaga ditolak."},{status:403});
