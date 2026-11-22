@@ -9,7 +9,7 @@ function detectDocumentMime(bytes:Uint8Array):"application/pdf"|"image/jpeg"|"im
  return null;
 }
 const actions=z.discriminatedUnion("action",[
- z.object({action:z.literal("submit")}),z.object({action:z.literal("start_review")}),
+ z.object({action:z.literal("submit")}),z.object({action:z.literal("start_review")}),z.object({action:z.literal("verify"),notes:z.string().trim().min(3).max(3000)}),
  z.object({action:z.literal("request_revision"),notes:z.string().trim().min(3).max(3000)}),
  z.object({action:z.literal("approve"),notes:z.string().trim().max(3000).optional()}),
  z.object({action:z.literal("reject"),notes:z.string().trim().min(3).max(3000)}),
@@ -20,7 +20,7 @@ export async function POST(req:Request,ctx:C){
  let uploaded:string|undefined;
  try{
  const {user,profile}=await session();const{id}=await ctx.params;
- const app=await prisma.application.findUnique({where:{id},include:{institution:{include:{members:true}},documents:true}});
+ const app=await prisma.application.findUnique({where:{id},include:{institution:{include:{members:true}},documents:true,verifications:{orderBy:{createdAt:"desc"},take:1,include:{officer:{select:{role:true}}}}}});
  if(!app)return NextResponse.json({error:"Pengajuan tidak ditemukan."},{status:404});
  const member=app.institution.members.some(m=>m.userProfileId===profile.id),staff=["OFFICER","APPROVER","ADMIN"].includes(profile.role);
  if((req.headers.get("content-type")||"").includes("multipart/form-data")){
@@ -40,14 +40,14 @@ export async function POST(req:Request,ctx:C){
  const parsed=actions.safeParse(await req.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:"Aksi tidak valid."},{status:400});
  const p=parsed.data,a=p.action;let next=app.status;
  if(a==="submit"){if(!member||!["DRAFT","NEEDS_REVISION"].includes(app.status)||!app.documents.length)return NextResponse.json({error:"Periksa keanggotaan dan unggah minimal satu dokumen."},{status:409});next="SUBMITTED";}
- else if(a==="start_review"||a==="request_revision"){if(!staff||profile.role==="APPROVER"||!["SUBMITTED","UNDER_REVIEW"].includes(app.status))return NextResponse.json({error:"Akses atau status tidak sesuai."},{status:403});next=a==="start_review"?"UNDER_REVIEW":"NEEDS_REVISION";}
- else if(a==="approve"||a==="reject"){if(!["APPROVER","ADMIN"].includes(profile.role)||app.status!=="UNDER_REVIEW")return NextResponse.json({error:"Hanya pejabat berwenang dapat memutuskan."},{status:403});next=a==="approve"?"APPROVED":"REJECTED";}
+ else if(a==="start_review"||a==="request_revision"||a==="verify"){if(!staff||profile.role==="APPROVER"||(a==="verify"&&profile.role!=="OFFICER")||(a==="verify"&&app.verifications[0]?.result!=="IN_REVIEW")||!["SUBMITTED","UNDER_REVIEW"].includes(app.status))return NextResponse.json({error:"Akses atau status tidak sesuai."},{status:403});next=a==="start_review"||a==="verify"?"UNDER_REVIEW":"NEEDS_REVISION";}
+ else if(a==="approve"||a==="reject"){if(!["APPROVER","ADMIN"].includes(profile.role)||app.status!=="UNDER_REVIEW"||(a==="approve"&&(app.verifications[0]?.result!=="VERIFIED"||app.verifications[0]?.officer.role!=="OFFICER")))return NextResponse.json({error:"Hanya pejabat berwenang dapat memutuskan."},{status:403});next=a==="approve"?"APPROVED":"REJECTED";}
  else if(!["APPROVER","ADMIN"].includes(profile.role)||app.status!=="APPROVED"||!app.documents.some(d=>d.storagePath===p.storagePath&&d.mimeType==="application/pdf"))return NextResponse.json({error:"Status atau dokumen PDF final tidak sesuai dengan pengajuan."},{status:409});
  if(a==="issue"){const stored=await storageAdmin().storage.from(BUCKET).download(p.storagePath);if(stored.error||!stored.data||detectDocumentMime(new Uint8Array(await stored.data.arrayBuffer()))!=="application/pdf")return NextResponse.json({error:"Berkas surat final harus PDF yang sudah tersimpan di bucket privat."},{status:400});}
  await prisma.$transaction(async tx=>{
   if(a==="issue"){await tx.issuedDocument.create({data:{applicationId:id,issuerId:profile.id,documentNumber:p.documentNumber,storagePath:p.storagePath}});await tx.application.update({where:{id,status:"APPROVED"},data:{status:"ISSUED"}});}
   else await tx.application.update({where:{id,status:app.status},data:{status:next,...(a==="submit"?{submittedAt:new Date()}:{})}});
-  if(a==="start_review"||a==="request_revision")await tx.verification.create({data:{applicationId:id,officerId:profile.id,result:a==="start_review"?"IN_REVIEW":"REVISION_REQUIRED",notes:a==="request_revision"?p.notes:null}});
+  if(a==="start_review"||a==="request_revision"||a==="verify")await tx.verification.create({data:{applicationId:id,officerId:profile.id,result:a==="start_review"?"IN_REVIEW":a==="verify"?"VERIFIED":"REVISION_REQUIRED",notes:a==="start_review"?null:p.notes}});
   if(a==="approve"||a==="reject")await tx.decision.create({data:{applicationId:id,approverId:profile.id,result:a==="approve"?"APPROVED":"REJECTED",notes:p.notes}});
   await tx.auditLog.create({data:{actorAuthId:user.id,action:`APPLICATION_${a.toUpperCase()}`,entityType:"Application",entityId:id,metadata:{from:app.status,to:a==="issue"?"ISSUED":next}}});
  });

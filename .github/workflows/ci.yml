@@ -17,6 +17,12 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Summarize dependency advisories
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node -e 'const a=require("/tmp/npm-audit.json"); for (const [name,v] of Object.entries(a.vulnerabilities ?? {})) console.log(name + ": " + v.severity + "; direct=" + v.isDirect + "; range=" + v.range + "; fix=" + JSON.stringify(v.fixAvailable))'
       - name: Generate Prisma Client
         run: npx prisma generate
       - name: Type check
