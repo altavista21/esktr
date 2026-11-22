@@ -7,7 +7,7 @@ export async function GET(){
  try { const {profile}=await session(); const staff=["OFFICER","APPROVER","ADMIN"].includes(profile.role);
  const rows=await prisma.application.findMany({where:staff?{}:{institution:{members:{some:{userProfileId:profile.id}}}},include:{institution:true,documents:{select:{id:true,documentType:true,originalName:true,mimeType:true,sizeBytes:true}}},orderBy:{updatedAt:"desc"},take:100});
  return NextResponse.json({data:rows.map(a=>({...a,documents:a.documents.map(d=>({...d,sizeBytes:d.sizeBytes.toString()}))}))});
- } catch(e){return NextResponse.json({error:"Sesi tidak valid atau profil belum disiapkan."},{status:401});}
+ } catch {return NextResponse.json({error:"Sesi tidak valid atau profil belum disiapkan."},{status:401});}
 }
 export async function POST(req:Request){
  try {const {user,profile}=await session(); const p=schema.safeParse(await req.json().catch(()=>null)); if(!p.success)return NextResponse.json({error:"Data pengajuan tidak valid."},{status:400});
