@@ -3,15 +3,29 @@ import {z} from "zod";
 import {createSupabaseServerClient} from "@/lib/supabase/server";
 import {prisma} from "@/lib/prisma";
 import {hasValidRequestOrigin} from "@/lib/security";
+import {checkLoginRateLimit} from "@/lib/login-rate-limit";
+
 const schema=z.object({email:z.string().email().max(254),password:z.string().min(8).max(128)});
+
 export async function POST(req:Request){
  if(!hasValidRequestOrigin(req))return NextResponse.json({error:"Asal permintaan tidak valid."},{status:403});
  const p=schema.safeParse(await req.json().catch(()=>null));
  if(!p.success)return NextResponse.json({error:"Email atau password tidak valid."},{status:400});
+
+ let rateLimit;
+ try {
+  rateLimit=await checkLoginRateLimit(req,p.data.email);
+ } catch {
+  return NextResponse.json({error:"Layanan login sementara tidak tersedia."},{status:503,headers:{"Cache-Control":"no-store"}});
+ }
+ if(!rateLimit.allowed){
+  return NextResponse.json({error:"Terlalu banyak percobaan login. Coba lagi setelah jeda waktu."},{status:429,headers:{"Retry-After":String(rateLimit.retryAfterSeconds),"Cache-Control":"no-store"}});
+ }
+
  const sb=await createSupabaseServerClient();
  const {data,error}=await sb.auth.signInWithPassword(p.data);
- if(error||!data.user)return NextResponse.json({error:"Email atau password salah."},{status:401});
+ if(error||!data.user)return NextResponse.json({error:"Email atau password salah."},{status:401,headers:{"Cache-Control":"no-store"}});
  try{await prisma.userProfile.upsert({where:{authUserId:data.user.id},create:{authUserId:data.user.id,fullName:typeof data.user.user_metadata?.full_name==="string"?data.user.user_metadata.full_name.slice(0,160):null},update:{}});}
  catch{return NextResponse.json({error:"Login berhasil, tetapi profil aplikasi belum dapat disiapkan. Hubungi administrator."},{status:503});}
- return NextResponse.json({ok:true});
+ return NextResponse.json({ok:true},{headers:{"Cache-Control":"no-store"}});
 }
