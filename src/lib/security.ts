@@ -19,3 +19,13 @@ export async function audit(actorAuthId:string,action:string,entityType:string,e
 }
 export const BUCKET="esktr-documents";
 export const MAX_BYTES=10*1024*1024;
+
+export function hasValidRequestOrigin(request:Request) {
+ const origin=request.headers.get("origin");
+ if(!origin)return false;
+ try { if(new URL(origin).origin!==new URL(request.url).origin)return false; }
+ catch { return false; }
+ const fetchSite=request.headers.get("sec-fetch-site");
+ if(fetchSite&&fetchSite!=="same-origin"&&fetchSite!=="none")return false;
+ return true;
+}

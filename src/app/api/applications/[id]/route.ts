@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";import {randomUUID} from "node:crypto";
-import {prisma} from "@/lib/prisma";import {session,audit,storageAdmin,BUCKET,MAX_BYTES} from "@/lib/security";
+import {prisma} from "@/lib/prisma";import {session,audit,storageAdmin,BUCKET,MAX_BYTES,hasValidRequestOrigin} from "@/lib/security";
 type C={params:Promise<{id:string}>};
 const actions=z.discriminatedUnion("action",[
  z.object({action:z.literal("submit")}),z.object({action:z.literal("start_review")}),
@@ -10,6 +10,7 @@ const actions=z.discriminatedUnion("action",[
  z.object({action:z.literal("issue"),documentNumber:z.string().trim().min(3).max(120),storagePath:z.string().trim().min(5).max(500)})
 ]);
 export async function POST(req:Request,ctx:C){
+ if(!hasValidRequestOrigin(req))return NextResponse.json({error:"Asal permintaan tidak valid."},{status:403});
  let uploaded:string|undefined;
  try{
  const {user,profile}=await session();const{id}=await ctx.params;
