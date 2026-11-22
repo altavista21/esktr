@@ -1,27 +1,24 @@
-# Status Implementasi
+# Status implementasi E-SKTR
 
-## Sudah disiapkan pada fondasi awal
-- [x] Struktur Next.js App Router dan TypeScript strict
-- [x] Tailwind CSS
-- [x] Struktur komponen UI bergaya shadcn/ui
-- [x] Lucide React
-- [x] Prisma schema awal PostgreSQL
-- [x] Helper koneksi Prisma
-- [x] Helper dasar Supabase browser/server
-- [x] Contoh environment tanpa kredensial
-- [x] README dan daftar pertanyaan terbuka
-- [x] GitHub Actions untuk pemeriksaan kualitas
+## Sudah masuk ke branch development
+- [x] Fondasi Next.js App Router, TypeScript, Tailwind, Prisma dan Supabase.
+- [x] Model peran APPLICANT, OFFICER, APPROVER, ADMIN.
+- [x] Model lembaga, keanggotaan, pengajuan, dokumen, pemeriksaan, keputusan, surat terbit, dan audit.
+- [x] API login/logout dan pembuatan profil pemohon default saat login.
+- [x] Dashboard pemohon/petugas, detail pengajuan dan antrean.
+- [x] Pembuatan draft, unggah dokumen privat PDF/JPG/PNG maksimal 10 MB, submit.
+- [x] Tindakan pemeriksaan, permintaan perbaikan, persetujuan/penolakan dan penerbitan metadata surat.
+- [x] Signed URL 60 detik untuk unduh dokumen dan surat terbit setelah otorisasi server.
+- [x] Audit log untuk perubahan alur penting.
+- [x] Migrasi awal PostgreSQL pada prisma/migrations.
+- [x] CI: install, Prisma generate, typecheck, lint, validasi schema dan build.
 
-## Belum dikerjakan
-- [ ] Install dependency dan verifikasi build pada runner
-- [ ] Provision project PostgreSQL/Supabase
-- [ ] Review schema bersama pemilik proses
-- [ ] Migrasi database pertama
-- [ ] Login/logout dan pemulihan sesi
-- [ ] RBAC dan otorisasi backend
-- [ ] Kebijakan private Storage
-- [ ] Master data lembaga dan pengajuan
-- [ ] Verifikasi, keputusan, dan penerbitan
-- [ ] Audit keamanan dan UAT
+## Belum siap produksi
+- [ ] Environment Supabase/PostgreSQL dan Vercel belum dihubungkan.
+- [ ] Migrasi belum dijalankan pada database target.
+- [ ] Data lembaga dan membership pemohon belum dimasukkan.
+- [ ] Role petugas/pejabat harus diberikan melalui prosedur admin yang aman.
+- [ ] Persyaratan resmi, pejabat berwenang, format/nomor surat, tanda tangan, masa berlaku, pembatalan dan retensi perlu disahkan pemilik proses.
+- [ ] UAT, security review, rate limiting, monitoring, backup dan uji pemulihan.
 
-Checklist ini menunjukkan status pekerjaan repository, bukan bukti bahwa pemeriksaan CI sudah lulus.
+CI terakhir yang diperiksa pada commit 27fdffc berhasil. Status ini tidak berarti integrasi layanan eksternal atau deployment produksi telah dilakukan.
