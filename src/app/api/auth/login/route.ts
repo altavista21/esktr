@@ -2,8 +2,10 @@ import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createSupabaseServerClient} from "@/lib/supabase/server";
 import {prisma} from "@/lib/prisma";
+import {hasValidRequestOrigin} from "@/lib/security";
 const schema=z.object({email:z.string().email().max(254),password:z.string().min(8).max(128)});
 export async function POST(req:Request){
+ if(!hasValidRequestOrigin(req))return NextResponse.json({error:"Asal permintaan tidak valid."},{status:403});
  const p=schema.safeParse(await req.json().catch(()=>null));
  if(!p.success)return NextResponse.json({error:"Email atau password tidak valid."},{status:400});
  const sb=await createSupabaseServerClient();
