@@ -18,6 +18,7 @@ export async function POST(req:Request,ctx:C){
  const member=app.institution.members.some(m=>m.userProfileId===profile.id),staff=["OFFICER","APPROVER","ADMIN"].includes(profile.role);
  if((req.headers.get("content-type")||"").includes("multipart/form-data")){
   if(!member&&!staff)return NextResponse.json({error:"Akses ditolak."},{status:403});
+  if(app.status==="APPROVED"&&!["APPROVER","ADMIN"].includes(profile.role))return NextResponse.json({error:"Hanya pejabat berwenang yang dapat mengunggah surat final."},{status:403});
   if(!["DRAFT","NEEDS_REVISION","APPROVED"].includes(app.status))return NextResponse.json({error:"Dokumen tidak dapat diubah pada status ini."},{status:409});
   const form=await req.formData(),file=form.get("file"),kind=String(form.get("documentType")||"").trim();
   if(!(file instanceof File)||!kind||kind.length>100||file.size<1||file.size>MAX_BYTES||!["application/pdf","image/jpeg","image/png"].includes(file.type))return NextResponse.json({error:"File harus PDF/JPG/PNG maksimal 10 MB dan jenis dokumen wajib."},{status:400});
