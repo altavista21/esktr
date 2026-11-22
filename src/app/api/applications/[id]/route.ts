@@ -47,7 +47,7 @@ export async function POST(req:Request,ctx:C){
  await prisma.$transaction(async tx=>{
   if(a==="issue"){await tx.issuedDocument.create({data:{applicationId:id,issuerId:profile.id,documentNumber:p.documentNumber,storagePath:p.storagePath}});await tx.application.update({where:{id,status:"APPROVED"},data:{status:"ISSUED"}});}
   else await tx.application.update({where:{id,status:app.status},data:{status:next,...(a==="submit"?{submittedAt:new Date()}:{})}});
-  if(a==="start_review"||a==="request_revision"||a==="verify")await tx.verification.create({data:{applicationId:id,officerId:profile.id,result:a==="start_review"?"IN_REVIEW":a==="verify"?"VERIFIED":"REVISION_REQUIRED",notes:p.notes??null}});
+  if(a==="start_review"||a==="request_revision"||a==="verify")await tx.verification.create({data:{applicationId:id,officerId:profile.id,result:a==="start_review"?"IN_REVIEW":a==="verify"?"VERIFIED":"REVISION_REQUIRED",notes:a==="start_review"?null:p.notes}});
   if(a==="approve"||a==="reject")await tx.decision.create({data:{applicationId:id,approverId:profile.id,result:a==="approve"?"APPROVED":"REJECTED",notes:p.notes}});
   await tx.auditLog.create({data:{actorAuthId:user.id,action:`APPLICATION_${a.toUpperCase()}`,entityType:"Application",entityId:id,metadata:{from:app.status,to:a==="issue"?"ISSUED":next}}});
  });
