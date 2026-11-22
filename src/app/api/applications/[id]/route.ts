@@ -2,6 +2,12 @@ import {NextResponse} from "next/server";
 import {z} from "zod";import {randomUUID} from "node:crypto";
 import {prisma} from "@/lib/prisma";import {session,audit,storageAdmin,BUCKET,MAX_BYTES,hasValidRequestOrigin} from "@/lib/security";
 type C={params:Promise<{id:string}>};
+function detectDocumentMime(bytes:Uint8Array):"application/pdf"|"image/jpeg"|"image/png"|null{
+ if(bytes.length>=5&&bytes[0]===0x25&&bytes[1]===0x50&&bytes[2]===0x44&&bytes[3]===0x46&&bytes[4]===0x2d)return "application/pdf";
+ if(bytes.length>=8&&bytes[0]===0x89&&bytes[1]===0x50&&bytes[2]===0x4e&&bytes[3]===0x47&&bytes[4]===0x0d&&bytes[5]===0x0a&&bytes[6]===0x1a&&bytes[7]===0x0a)return "image/png";
+ if(bytes.length>=3&&bytes[0]===0xff&&bytes[1]===0xd8&&bytes[2]===0xff)return "image/jpeg";
+ return null;
+}
 const actions=z.discriminatedUnion("action",[
  z.object({action:z.literal("submit")}),z.object({action:z.literal("start_review")}),
  z.object({action:z.literal("request_revision"),notes:z.string().trim().min(3).max(3000)}),
@@ -22,10 +28,12 @@ export async function POST(req:Request,ctx:C){
   if(app.status==="APPROVED"&&!["APPROVER","ADMIN"].includes(profile.role))return NextResponse.json({error:"Hanya pejabat berwenang yang dapat mengunggah surat final."},{status:403});
   if(!["DRAFT","NEEDS_REVISION","APPROVED"].includes(app.status))return NextResponse.json({error:"Dokumen tidak dapat diubah pada status ini."},{status:409});
   const form=await req.formData(),file=form.get("file"),kind=String(form.get("documentType")||"").trim();
-  if(!(file instanceof File)||!kind||kind.length>100||file.size<1||file.size>MAX_BYTES||!["application/pdf","image/jpeg","image/png"].includes(file.type))return NextResponse.json({error:"File harus PDF/JPG/PNG maksimal 10 MB dan jenis dokumen wajib."},{status:400});
-  const ext=file.type==="application/pdf"?"pdf":file.type==="image/png"?"png":"jpg";uploaded=`${app.institutionId}/${id}/${randomUUID()}.${ext}`;
-  const {error}=await storageAdmin().storage.from(BUCKET).upload(uploaded,file,{contentType:file.type,upsert:false});if(error)throw new Error("UPLOAD_FAILED");
-  const doc=await prisma.applicationDocument.create({data:{applicationId:id,documentType:kind,storagePath:uploaded,originalName:file.name.replace(/[\\/\\0]/g,"").slice(0,255)||"dokumen",mimeType:file.type,sizeBytes:BigInt(file.size)}});
+  if(!(file instanceof File)||!kind||kind.length>100||file.size<1||file.size>MAX_BYTES)return NextResponse.json({error:"File harus PDF/JPG/PNG maksimal 10 MB dan jenis dokumen wajib."},{status:400});
+  const fileBytes=new Uint8Array(await file.arrayBuffer()),detectedMime=detectDocumentMime(fileBytes);
+  if(!detectedMime)return NextResponse.json({error:"Isi file tidak cocok dengan PDF, JPG, atau PNG yang didukung."},{status:400});
+  const ext=detectedMime==="application/pdf"?"pdf":detectedMime==="image/png"?"png":"jpg";uploaded=`${app.institutionId}/${id}/${randomUUID()}.${ext}`;
+  const {error}=await storageAdmin().storage.from(BUCKET).upload(uploaded,file,{contentType:detectedMime,upsert:false});if(error)throw new Error("UPLOAD_FAILED");
+  const doc=await prisma.applicationDocument.create({data:{applicationId:id,documentType:kind,storagePath:uploaded,originalName:file.name.replace(/[\\/\\0]/g,"").slice(0,255)||"dokumen",mimeType:detectedMime,sizeBytes:BigInt(file.size)}});
   await audit(user.id,"DOCUMENT_UPLOADED","ApplicationDocument",doc.id,{applicationId:id,documentType:kind});
   return NextResponse.json({data:{id:doc.id,documentType:doc.documentType,storagePath:doc.storagePath}},{status:201});
  }
@@ -35,7 +43,7 @@ export async function POST(req:Request,ctx:C){
  else if(a==="start_review"||a==="request_revision"){if(!staff||profile.role==="APPROVER"||!["SUBMITTED","UNDER_REVIEW"].includes(app.status))return NextResponse.json({error:"Akses atau status tidak sesuai."},{status:403});next=a==="start_review"?"UNDER_REVIEW":"NEEDS_REVISION";}
  else if(a==="approve"||a==="reject"){if(!["APPROVER","ADMIN"].includes(profile.role)||app.status!=="UNDER_REVIEW")return NextResponse.json({error:"Hanya pejabat berwenang dapat memutuskan."},{status:403});next=a==="approve"?"APPROVED":"REJECTED";}
  else if(!["APPROVER","ADMIN"].includes(profile.role)||app.status!=="APPROVED"||!app.documents.some(d=>d.storagePath===p.storagePath&&d.mimeType==="application/pdf"))return NextResponse.json({error:"Status atau dokumen PDF final tidak sesuai dengan pengajuan."},{status:409});
- if(a==="issue"){const stored=await storageAdmin().storage.from(BUCKET).download(p.storagePath);if(stored.error||!stored.data||stored.data.type!=="application/pdf")return NextResponse.json({error:"Berkas surat final harus PDF yang sudah tersimpan di bucket privat."},{status:400});}
+ if(a==="issue"){const stored=await storageAdmin().storage.from(BUCKET).download(p.storagePath);if(stored.error||!stored.data||detectDocumentMime(new Uint8Array(await stored.data.arrayBuffer()))!=="application/pdf")return NextResponse.json({error:"Berkas surat final harus PDF yang sudah tersimpan di bucket privat."},{status:400});}
  await prisma.$transaction(async tx=>{
   if(a==="issue"){await tx.issuedDocument.create({data:{applicationId:id,issuerId:profile.id,documentNumber:p.documentNumber,storagePath:p.storagePath}});await tx.application.update({where:{id,status:"APPROVED"},data:{status:"ISSUED"}});}
   else await tx.application.update({where:{id,status:app.status},data:{status:next,...(a==="submit"?{submittedAt:new Date()}:{})}});
