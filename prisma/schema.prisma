@@ -1,127 +1,175 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
-enum InstitutionType { PONDOK_PESANTREN MADRASAH_DINIYAH TPQ }
-enum MembershipRole { OWNER OPERATOR }
-enum UserRole { APPLICANT OFFICER APPROVER ADMIN }
-enum ApplicationStatus { DRAFT SUBMITTED UNDER_REVIEW NEEDS_REVISION APPROVED REJECTED ISSUED }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InstitutionType {
+  PONDOK_PESANTREN
+  MADRASAH_DINIYAH
+  TPQ
+}
+
+enum MembershipRole {
+  OWNER
+  OPERATOR
+}
+
+enum UserRole {
+  APPLICANT
+  OFFICER
+  APPROVER
+  ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  NEEDS_REVISION
+  APPROVED
+  REJECTED
+  ISSUED
+}
+
 model UserProfile {
- id String @id @default(uuid()) @db.Uuid
- authUserId String @unique @map("auth_user_id") @db.Uuid
- fullName String? @map("full_name") @db.VarChar(160)
- phone String? @db.VarChar(32)
- role UserRole @default(APPLICANT)
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- memberships InstitutionMember[]
- verifications Verification[]
- decisions Decision[]
- issuedDocs IssuedDocument[]
- @@map("user_profiles")
+  id           String              @id @default(uuid()) @db.Uuid
+  authUserId   String              @unique @map("auth_user_id") @db.Uuid
+  fullName     String?             @map("full_name") @db.VarChar(160)
+  phone        String?             @db.VarChar(32)
+  role         UserRole            @default(APPLICANT)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  memberships  InstitutionMember[]
+  verifications Verification[]
+  decisions    Decision[]
+  issuedDocs   IssuedDocument[]
+
+  @@map("user_profiles")
 }
+
 model Institution {
- id String @id @default(uuid()) @db.Uuid
- name String @db.VarChar(200)
- type InstitutionType
- registrationNumber String? @unique @map("registration_number") @db.VarChar(80)
- address String? @db.Text
- village String? @db.VarChar(120)
- district String? @db.VarChar(120)
- regency String @default("Kabupaten Temanggung") @db.VarChar(120)
- province String @default("Jawa Tengah") @db.VarChar(120)
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- members InstitutionMember[]
- applications Application[]
- @@index([name])
- @@map("institutions")
+  id                 String              @id @default(uuid()) @db.Uuid
+  name               String              @db.VarChar(200)
+  type               InstitutionType
+  registrationNumber String?             @unique @map("registration_number") @db.VarChar(80)
+  address            String?             @db.Text
+  village            String?             @db.VarChar(120)
+  district           String?             @db.VarChar(120)
+  regency            String              @default("Kabupaten Temanggung") @db.VarChar(120)
+  province           String              @default("Jawa Tengah") @db.VarChar(120)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  members            InstitutionMember[]
+  applications       Application[]
+
+  @@index([name])
+  @@map("institutions")
 }
+
 model InstitutionMember {
- id String @id @default(uuid()) @db.Uuid
- userProfileId String @map("user_profile_id") @db.Uuid
- institutionId String @map("institution_id") @db.Uuid
- role MembershipRole @default(OPERATOR)
- createdAt DateTime @default(now()) @map("created_at")
- userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
- institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
- @@unique([userProfileId,institutionId])
- @@index([institutionId])
- @@map("institution_members")
+  id            String         @id @default(uuid()) @db.Uuid
+  userProfileId String         @map("user_profile_id") @db.Uuid
+  institutionId String         @map("institution_id") @db.Uuid
+  role          MembershipRole @default(OPERATOR)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  userProfile   UserProfile    @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, institutionId])
+  @@index([institutionId])
+  @@map("institution_members")
 }
+
 model Application {
- id String @id @default(uuid()) @db.Uuid
- institutionId String @map("institution_id") @db.Uuid
- referenceCode String? @unique @map("reference_code") @db.VarChar(80)
- serviceType String @map("service_type") @db.VarChar(80)
- status ApplicationStatus @default(DRAFT)
- applicantNote String? @map("applicant_note") @db.Text
- submittedAt DateTime? @map("submitted_at")
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
- documents ApplicationDocument[]
- verifications Verification[]
- decision Decision?
- issuedDocument IssuedDocument?
- @@index([institutionId,status])
- @@index([createdAt])
- @@map("applications")
+  id             String               @id @default(uuid()) @db.Uuid
+  institutionId  String               @map("institution_id") @db.Uuid
+  referenceCode  String?              @unique @map("reference_code") @db.VarChar(80)
+  serviceType    String               @map("service_type") @db.VarChar(80)
+  status         ApplicationStatus    @default(DRAFT)
+  applicantNote  String?              @map("applicant_note") @db.Text
+  submittedAt    DateTime?            @map("submitted_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  institution    Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  documents      ApplicationDocument[]
+  verifications  Verification[]
+  decision       Decision?
+  issuedDocument IssuedDocument?
+
+  @@index([institutionId, status])
+  @@index([createdAt])
+  @@map("applications")
 }
+
 model ApplicationDocument {
- id String @id @default(uuid()) @db.Uuid
- applicationId String @map("application_id") @db.Uuid
- documentType String @map("document_type") @db.VarChar(100)
- storagePath String @unique @map("storage_path") @db.VarChar(500)
- originalName String @map("original_name") @db.VarChar(255)
- mimeType String @map("mime_type") @db.VarChar(120)
- sizeBytes BigInt @map("size_bytes")
- uploadedAt DateTime @default(now()) @map("uploaded_at")
- application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
- @@index([applicationId])
- @@map("application_documents")
+  id            String      @id @default(uuid()) @db.Uuid
+  applicationId String      @map("application_id") @db.Uuid
+  documentType  String      @map("document_type") @db.VarChar(100)
+  storagePath   String      @unique @map("storage_path") @db.VarChar(500)
+  originalName  String      @map("original_name") @db.VarChar(255)
+  mimeType      String      @map("mime_type") @db.VarChar(120)
+  sizeBytes     BigInt      @map("size_bytes")
+  uploadedAt    DateTime    @default(now()) @map("uploaded_at")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("application_documents")
 }
+
 model Verification {
- id String @id @default(uuid()) @db.Uuid
- applicationId String @map("application_id") @db.Uuid
- officerId String @map("officer_id") @db.Uuid
- result String @db.VarChar(40)
- notes String? @db.Text
- createdAt DateTime @default(now()) @map("created_at")
- application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
- officer UserProfile @relation(fields: [officerId], references: [id], onDelete: Restrict)
- @@index([applicationId,createdAt])
- @@map("verifications")
+  id            String      @id @default(uuid()) @db.Uuid
+  applicationId String      @map("application_id") @db.Uuid
+  officerId     String      @map("officer_id") @db.Uuid
+  result        String      @db.VarChar(40)
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  officer       UserProfile @relation(fields: [officerId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, createdAt])
+  @@map("verifications")
 }
+
 model Decision {
- id String @id @default(uuid()) @db.Uuid
- applicationId String @unique @map("application_id") @db.Uuid
- approverId String @map("approver_id") @db.Uuid
- result String @db.VarChar(20)
- notes String? @db.Text
- decidedAt DateTime @default(now()) @map("decided_at")
- application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
- approver UserProfile @relation(fields: [approverId], references: [id], onDelete: Restrict)
- @@map("decisions")
+  id            String      @id @default(uuid()) @db.Uuid
+  applicationId String      @unique @map("application_id") @db.Uuid
+  approverId    String      @map("approver_id") @db.Uuid
+  result        String      @db.VarChar(20)
+  notes         String?     @db.Text
+  decidedAt     DateTime    @default(now()) @map("decided_at")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  approver      UserProfile @relation(fields: [approverId], references: [id], onDelete: Restrict)
+
+  @@map("decisions")
 }
+
 model IssuedDocument {
- id String @id @default(uuid()) @db.Uuid
- applicationId String @unique @map("application_id") @db.Uuid
- issuerId String @map("issuer_id") @db.Uuid
- documentNumber String @map("document_number") @db.VarChar(120)
- storagePath String @unique @map("storage_path") @db.VarChar(500)
- issuedAt DateTime @default(now()) @map("issued_at")
- application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
- issuer UserProfile @relation(fields: [issuerId], references: [id], onDelete: Restrict)
- @@map("issued_documents")
+  id             String      @id @default(uuid()) @db.Uuid
+  applicationId  String      @unique @map("application_id") @db.Uuid
+  issuerId       String      @map("issuer_id") @db.Uuid
+  documentNumber String      @map("document_number") @db.VarChar(120)
+  storagePath    String      @unique @map("storage_path") @db.VarChar(500)
+  issuedAt       DateTime    @default(now()) @map("issued_at")
+  application    Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  issuer         UserProfile @relation(fields: [issuerId], references: [id], onDelete: Restrict)
+
+  @@map("issued_documents")
 }
+
 model AuditLog {
- id String @id @default(uuid()) @db.Uuid
- actorAuthId String? @map("actor_auth_id") @db.Uuid
- action String @db.VarChar(100)
- entityType String @map("entity_type") @db.VarChar(100)
- entityId String? @map("entity_id") @db.VarChar(100)
- metadata Json?
- createdAt DateTime @default(now()) @map("created_at")
- @@index([entityType,entityId])
- @@index([actorAuthId,createdAt])
- @@map("audit_logs")
+  id          String   @id @default(uuid()) @db.Uuid
+  actorAuthId String?  @map("actor_auth_id") @db.Uuid
+  action      String   @db.VarChar(100)
+  entityType  String   @map("entity_type") @db.VarChar(100)
+  entityId    String?  @map("entity_id") @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([actorAuthId, createdAt])
+  @@map("audit_logs")
 }
